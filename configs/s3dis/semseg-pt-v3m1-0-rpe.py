@@ -1,8 +1,8 @@
 _base_ = ["../_base_/default_runtime.py"]
 
 # misc custom setting
-batch_size = 12  # bs: total bs in all gpus
-num_worker = 24
+batch_size = 4  # bs: total bs in all gpus
+num_worker = 0
 mix_prob = 0.8
 empty_cache = False
 enable_amp = True
@@ -132,7 +132,7 @@ data = dict(
     ),
     val=dict(
         type=dataset_type,
-        split="Area_5",
+        split="test_one.json",
         data_root=data_root,
         transform=[
             dict(type="CenterShift", apply_z=True),

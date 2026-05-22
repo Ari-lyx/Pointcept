@@ -221,7 +221,7 @@ class SemSegTester(TesterBase):
             mask = union != 0
             iou_class = intersection / (union + 1e-10)
             iou = np.mean(iou_class[mask])
-            acc = sum(intersection) / (sum(target) + 1e-10)
+            acc = np.sum(intersection) / (np.sum(target) + 1e-10)
 
             m_iou = np.mean(intersection_meter.sum / (union_meter.sum + 1e-10))
             m_acc = np.mean(intersection_meter.sum / (target_meter.sum + 1e-10))
@@ -312,7 +312,7 @@ class SemSegTester(TesterBase):
             accuracy_class = intersection / (target + 1e-10)
             mIoU = np.mean(iou_class)
             mAcc = np.mean(accuracy_class)
-            allAcc = sum(intersection) / (sum(target) + 1e-10)
+            allAcc = np.sum(intersection) / (np.sum(target) + 1e-10)
 
             logger.info(
                 "Val result: mIoU/mAcc/allAcc {:.4f}/{:.4f}/{:.4f}".format(

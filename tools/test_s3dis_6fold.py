@@ -44,7 +44,7 @@ def evaluation(intersection, union, target, logger=None):
     accuracy_class = intersection / (target + 1e-10)
     mIoU = np.mean(iou_class)
     mAcc = np.mean(accuracy_class)
-    allAcc = sum(intersection) / (sum(target) + 1e-10)
+    allAcc = np.sum(intersection) / (np.sum(target) + 1e-10)
 
     if logger is not None:
         logger.info(
