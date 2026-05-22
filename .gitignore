@@ -14,3 +14,4 @@ outputs/
 */.DS_Store
 **/*.out
 Dockerfile
+pointcept/datasets/preprocessing/s3dis/Stanford3dDataset_v1.2

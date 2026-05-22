@@ -1058,6 +1058,117 @@ class SphereCrop(object):
 
 
 @TRANSFORMS.register_module()
+class SphereCropAll(object):
+    def __init__(self, point_max=80000):
+        self.point_max = point_max
+
+    def __call__(self, data_dict):
+        assert "coord" in data_dict.keys()
+        num_points = data_dict["coord"].shape[0]
+        if num_points <= self.point_max:
+            return [data_dict]
+
+        coord = data_dict["coord"]
+        remaining = np.ones(num_points, dtype=bool)
+        data_list = []
+
+        while remaining.any():
+            center_idx = np.flatnonzero(remaining)[0]
+            center = coord[center_idx]
+            idx_crop = np.argsort(np.sum(np.square(coord - center), axis=1))[
+                : self.point_max
+            ]
+            data_list.append(index_operator(data_dict, idx_crop, duplicate=True))
+            remaining[idx_crop] = False
+
+        return data_list
+
+
+@TRANSFORMS.register_module()
+class SlidingWindowCropAll(object):
+    def __init__(
+        self,
+        window_size=(4.0, 4.0),
+        stride=(2.0, 2.0),
+        min_points=1024,
+        point_max=None,
+        use_z=False,
+    ):
+        self.window_size = window_size
+        self.stride = stride
+        self.min_points = min_points
+        self.point_max = point_max
+        self.use_z = use_z
+
+    def __call__(self, data_dict):
+        assert "coord" in data_dict.keys()
+        coord = data_dict["coord"]
+        coord_min = coord.min(axis=0)
+        coord_max = coord.max(axis=0)
+
+        if self.use_z:
+            ranges = [
+                np.arange(
+                    coord_min[i],
+                    coord_max[i] + self.stride[i] - self.window_size[i],
+                    self.stride[i],
+                )
+                for i in range(3)
+            ]
+            grid = np.stack(np.meshgrid(*ranges, indexing="ij"), axis=-1).reshape(-1, 3)
+        else:
+            ranges = [
+                np.arange(
+                    coord_min[i],
+                    coord_max[i] + self.stride[i] - self.window_size[i],
+                    self.stride[i],
+                )
+                for i in range(2)
+            ]
+            x, y = np.meshgrid(*ranges, indexing="ij")
+            grid = np.stack([x.reshape(-1), y.reshape(-1)], axis=-1)
+
+        data_list = []
+        for start in grid:
+            if self.use_z:
+                mask = (
+                    (coord[:, 0] >= start[0])
+                    & (coord[:, 0] < start[0] + self.window_size[0])
+                    & (coord[:, 1] >= start[1])
+                    & (coord[:, 1] < start[1] + self.window_size[1])
+                    & (coord[:, 2] >= start[2])
+                    & (coord[:, 2] < start[2] + self.window_size[2])
+                )
+            else:
+                mask = (
+                    (coord[:, 0] >= start[0])
+                    & (coord[:, 0] < start[0] + self.window_size[0])
+                    & (coord[:, 1] >= start[1])
+                    & (coord[:, 1] < start[1] + self.window_size[1])
+                )
+            if np.sum(mask) < self.min_points:
+                continue
+            if self.point_max is not None and np.sum(mask) > self.point_max:
+                if self.use_z:
+                    center = np.array(start) + np.array(self.window_size) / 2
+                    dist = np.sum(np.square(coord[mask] - center), axis=1)
+                else:
+                    center = np.array(start) + np.array(self.window_size) / 2
+                    dist = np.sum(
+                        np.square(coord[mask][:, :2] - center[:2]), axis=1
+                    )
+                mask_idx = np.flatnonzero(mask)
+                idx_crop = mask_idx[np.argsort(dist)[: self.point_max]]
+                data_list.append(index_operator(data_dict, idx_crop, duplicate=True))
+            else:
+                data_list.append(index_operator(data_dict, mask, duplicate=True))
+
+        if len(data_list) == 0:
+            data_list.append(data_dict)
+        return data_list
+
+
+@TRANSFORMS.register_module()
 class ShufflePoint(object):
     def __call__(self, data_dict):
         assert "coord" in data_dict.keys()

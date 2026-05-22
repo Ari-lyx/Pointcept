@@ -103,8 +103,8 @@ class TesterBase:
             test_dataset,
             batch_size=self.cfg.batch_size_test_per_gpu,
             shuffle=False,
-            num_workers=self.cfg.batch_size_test_per_gpu,
-            pin_memory=True,
+            num_workers=0,         # use main process loader to avoid worker copies
+            pin_memory=False,      # avoid pinned memory usage on host
             sampler=test_sampler,
             collate_fn=self.__class__.collate_fn,
         )
@@ -212,6 +212,11 @@ class SemSegTester(TesterBase):
                             batch_num=len(fragment_list),
                         )
                     )
+                    # Free the processed fragment to release CPU memory
+                    fragment_list[i] = None
+                    for k in list(input_dict.keys()):
+                        input_dict[k] = None
+                    del input_dict
                 if self.cfg.data.test.type == "ScanNetPPDataset":
                     pred = pred.topk(3, dim=1)[1].data.cpu().numpy()
                 else:

@@ -24,6 +24,7 @@ def main_worker(cfg):
 def main():
     args = default_argument_parser().parse_args()
     cfg = default_config_parser(args.config_file, args.options)
+    # 读取 .py 配置文件 + 把 --options 合并进去，最终产出 cfg 对象
 
     launch(
         main_worker,
