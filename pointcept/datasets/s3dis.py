@@ -6,12 +6,25 @@ Please cite our work if the code is helpful to you.
 """
 
 import os
+import json
 from .defaults import DefaultDataset
 from .builder import DATASETS
 
 
 @DATASETS.register_module()
 class S3DISDataset(DefaultDataset):
+    def get_data_list(self):
+        if isinstance(self.split, str) and self.split.endswith(".json"):
+            json_path = os.path.join(self.data_root, self.split)
+            if os.path.isfile(json_path):
+                with open(json_path, "r") as f:
+                    room_list = json.load(f)
+                return [
+                    os.path.join(self.data_root, room)
+                    for room in room_list
+                ]
+        return super().get_data_list()
+
     def get_data_name(self, idx):
         remain, room_name = os.path.split(self.data_list[idx % len(self.data_list)])
         remain, area_name = os.path.split(remain)
