@@ -296,6 +296,9 @@ class SemSegTester(TesterBase):
                 r = record_sync.pop()
                 record.update(r)
                 del r
+            if len(record) == 0:
+                logger.warning("No records found, skipping evaluation.")
+                return
             intersection = np.sum(
                 [meters["intersection"] for _, meters in record.items()], axis=0
             )

@@ -7,6 +7,7 @@ Please cite our work if the code is helpful to you.
 
 import os
 import glob
+import json
 import numpy as np
 import torch
 from copy import deepcopy
@@ -60,11 +61,25 @@ class S3DISDataset(Dataset):
 
     def get_data_list(self):
         if isinstance(self.split, str):
-            data_list = glob.glob(os.path.join(self.data_root, self.split, "*.pth"))
+            if self.split.endswith(".json"):
+                json_path = os.path.join(self.data_root, self.split)
+                if os.path.isfile(json_path):
+                    with open(json_path, "r") as f:
+                        room_list = json.load(f)
+                    data_list = []
+                    for room in room_list:
+                        room_dir = os.path.join(self.data_root, room)
+                        if os.path.isdir(room_dir):
+                            data_list.append(room_dir)
+                    return data_list
+            # Look for room directories (new .npy format) instead of .pth files
+            data_list = glob.glob(os.path.join(self.data_root, self.split, "*"))
+            data_list = [p for p in data_list if os.path.isdir(p)]
         elif isinstance(self.split, Sequence):
             data_list = []
-            for split in self.split:
-                data_list += glob.glob(os.path.join(self.data_root, split, "*.pth"))
+            for sp in self.split:
+                rooms = glob.glob(os.path.join(self.data_root, sp, "*"))
+                data_list += [p for p in rooms if os.path.isdir(p)]
         else:
             raise NotImplementedError
         return data_list
@@ -72,29 +87,30 @@ class S3DISDataset(Dataset):
     def get_data(self, idx):
         data_path = self.data_list[idx % len(self.data_list)]
         if not self.cache:
-            data = torch.load(data_path)
+            # Load from .npy files in directory (newer format)
+            data = {}
+            for asset in os.listdir(data_path):
+                if not asset.endswith(".npy"):
+                    continue
+                data[asset[:-4]] = np.load(os.path.join(data_path, asset))
         else:
             data_name = data_path.replace(os.path.dirname(self.data_root), "").split(
                 "."
             )[0]
             cache_name = "pointcept" + data_name.replace(os.path.sep, "-")
             data = shared_dict(cache_name)
-        name = (
-            os.path.basename(self.data_list[idx % len(self.data_list)])
-            .split("_")[0]
-            .replace("R", " r")
-        )
-        coord = data["coord"]
-        color = data["color"]
+        name = self.get_data_name(idx)
+        coord = data["coord"].astype(np.float32)
+        color = data["color"].astype(np.float32)
         scene_id = data_path
-        if "semantic_gt" in data.keys():
-            segment = data["semantic_gt"].reshape([-1])
+        if "segment" in data.keys():
+            segment = data["segment"].reshape([-1]).astype(np.int32)
         else:
-            segment = np.ones(coord.shape[0]) * -1
-        if "instance_gt" in data.keys():
-            instance = data["instance_gt"].reshape([-1])
+            segment = np.ones(coord.shape[0], dtype=np.int32) * -1
+        if "instance" in data.keys():
+            instance = data["instance"].reshape([-1]).astype(np.int32)
         else:
-            instance = np.ones(coord.shape[0]) * -1
+            instance = np.ones(coord.shape[0], dtype=np.int32) * -1
         data_dict = dict(
             name=name,
             coord=coord,
@@ -108,7 +124,9 @@ class S3DISDataset(Dataset):
         return data_dict
 
     def get_data_name(self, idx):
-        return os.path.basename(self.data_list[idx % len(self.data_list)]).split(".")[0]
+        room_name = os.path.basename(self.data_list[idx % len(self.data_list)])
+        remain, area_name = os.path.split(os.path.dirname(self.data_list[idx % len(self.data_list)]))
+        return f"{area_name}-{room_name}"
 
     def prepare_train_data(self, idx):
         # load data
